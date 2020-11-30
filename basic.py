@@ -18,6 +18,8 @@
 # latitude: float <deg>
 # altitude: float <deg>
 # temperature: float <degC>
+# dTemperature: float <degC> -- dry temperature
+# wTemperature: float <degC> -- wet temperature
 # rHumidity: float <%> -- relative humidity
 # pressure: float <hPa>
 # windSpeed: float <m/s>
@@ -133,6 +135,7 @@ def saturation_vapor_pressure(temperature,phase='water'):
     def liquid(temperature):
         return 6.1121*np.exp((18.678-(temperature/234.5))*(temperature/(257.14+temperature)))
     def solid(temperature):
+        # incorrect
         return 6.1121*np.exp((18.678-(temperature/234.5))*(temperature/(257.14+temperature)))
     
     phase_list={
@@ -160,20 +163,42 @@ def saturation_vapor_pressure(temperature,phase='water'):
     Tl=liquid(Tl); Ts=solid(Ts)
     return np.nansum([Tl,Ts],axis=0)
 
-def vapor_pressure(temperature,rHumidity,*args,**keywords):
+def vapor_pressure(temperature=None,rHumidity=None,method='rh',dTemperature=None,wTemperature=None,Pressure=None,*args,**keywords):
     '''
     # Input Parameter
     @basi temperature: float <degC>
     @basi rHumidity: float <%> -- relative humidity
-    @disc phase: str <1> [defaul='water','ice'] -- defined what the water phase at 0℃
+    @disc method: str <1> [default='rh', 'dw'] -- defined the calculation method, dw mean dry and wet bulb temperature measurement method
+        {
+            if method=='dw' -> keywords:{
+                @basi dTemperature: float <degC>
+                @basi wTemperature: float <degC>
+                @basi pressure: float <hPa>
+            }
+        }
+    @disc phase: str <1> [default='water','ice'] -- defined what the water phase at 0℃
 
     # Output Parameter
     @deri vapor pressure: float <hPa>
 
-    #Formula
-    e=es*rh
+    # Formula
+    method='rh' ->
+        e=es*rh
+    method='wd' ->
+        phase='water' -> e=es-0.5*(dTemperature-wTemperature)*Pressure/1013.25  (es is water saturation pressure)
+        phase='ice'   -> e=es-0.44*(dTemperature-wTemperature)*Pressure/1013.25 (es is ice saturation pressure)
+    
+    # Src: https://zhidao.baidu.com/question/373004649658108244.html
     '''
-    return saturation_vapor_pressure(temperature,*args,**keywords)*rHumidity/100
+    if method=='rh':
+        return saturation_vapor_pressure(temperature,*args,**keywords)*rHumidity/100
+    if method in ['dw','wd']:
+        if 'phase' in keywords.keys():
+            if keywords['phase']=='water': return saturation_vapor_pressure(dtemperature,*args,**keywords)-0.5*(dTemperature-wTemperature)*Pressure/1013.25
+            if keywords['phase']=='ice': return saturation_vapor_pressure(dtemperature,*args,**keywords)-0.44*(dTemperature-wTemperature)*Pressure/1013.25
+        else:
+            return saturation_vapor_pressure(dTemperature,*args,**keywords)-0.5*(dTemperature-wTemperature)*Pressure/1013.25
+            
 
 def mixing_ratio(pressure,vapor=None,*args,**keywords):
     '''
@@ -430,3 +455,12 @@ def equivalent_potential_temperature(*args,**keywords):
     https://zh.wikipedia.org/wiki/%E7%9B%B8%E7%95%B6%E4%BD%8D%E6%BA%AB
     '''
     return potential_temperature(temperature=equivalent_temperature(**keywords),pressure=keywords['pressure'])
+
+if __name__ == "__main__":
+    Temperature = 25
+    
+
+    satPressure = saturation_vapor_pressure(25)
+    vapPressure = vapor_pressure(dTemperature=25, wTemperature=20, method='dw', Pressure=1000)
+
+    print('stop')
