@@ -41,6 +41,7 @@
 # AGL: float <m> -- above ground level height
 # density_air <kg/m3>
 # spLatent: float <kJ/kg> -- specific latent heat
+# triTemperature_water: float <K> -- water triple point temperature
 # =================================================================== #
 # Declear function
 # functionName -- discription and not
@@ -129,7 +130,36 @@ def saturation_vapor_pressure(temperature,phase='water'):
         -80℃ < T < 50℃
     2. depend on numpy to calculate array
 
-    # Ref: Arden Buck equations
+    # Formula
+        Arden Buck equations -> es = 6.1121*exp((18.678-(temperature/234.5))*(temperature/(257.14+temperature)))
+        Goff Gratch equations ->     # Not implement
+            phase='water' -> es = 10**(
+                C1*(1-triTemperature_water/(temperature+273.15)) +
+                C2*log((temperature+273.15)/triTemperature_water) +
+                C3*10**(-4)*(1-10**(C4*(temperature/triTemperature_water)**(-1))) +
+                C5*10**(-3)*(10**(C6*(1-triTemperature_water/temperature))-1) +
+                C7)
+            C1 = 10.79586
+            C2 = -5.02808
+            C3 = 1.50474
+            C4 = -8.20602
+            C5 = 0.42873
+            C6 = 4.76955
+            C7 = 0.7861183
+            phase='ice' -> es = 10**(
+                C1*(triTemperature_water/temperature-1) +
+                C2*log(triTemperature_water/temperature) +
+                C3(1-temperature/triTemperature_water) +
+                C4
+            )
+            C1 = -9.906936
+            C2 = -3.56654
+            C3 = 0.876817
+            C4 = 0.7861183
+        triTemperature_water = 273.16 <K>
+    # Ref: 
+        Arden Buck equations
+        Goff Gratch equation(1946)
     '''
     import numpy as np
     def liquid(temperature):
@@ -187,10 +217,17 @@ def vapor_pressure(temperature=None,rHumidity=None,method='rh',dTemperature=None
     method='wd' ->
         phase='water' -> e=es-0.5*(dTemperature-wTemperature)*Pressure/1013.25  (es is water saturation pressure)
         phase='ice'   -> e=es-0.44*(dTemperature-wTemperature)*Pressure/1013.25 (es is ice saturation pressure)
-    
+    method='Ferrel'  # Not implement
+        phase='water' -> e=es+C1*Pressure*(dTemperature-wTemperature)*(1+C2*(wTemperature+273.15))
+            C1 = -6.6*10**(-4)
+            C2 = 0.00115
+        phase='ice'   -> e=es+C1*Pressure*(dTemperature-wTemperature)*(1+C2*(wTemperature+273.15))
+            C1 = -5.973*10**(-4)
+            C2 = 0.00115
+
     # Src: https://zhidao.baidu.com/question/373004649658108244.html
     '''
-    if method=='rh':
+    if method in ['rh']:
         return saturation_vapor_pressure(temperature,*args,**keywords)*rHumidity/100
     if method in ['dw','wd']:
         if 'phase' in keywords.keys():
